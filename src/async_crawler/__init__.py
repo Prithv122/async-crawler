@@ -4,6 +4,7 @@ from async_crawler.crawler import Crawler, CrawlReport
 from async_crawler.fetcher import AsyncFetcher, FetchResult
 from async_crawler.links import extract_links
 from async_crawler.ratelimit import RateLimiter
+from async_crawler.report import format_report, report_to_dict
 from async_crawler.retry import RetryPolicy
 from async_crawler.robots import RobotsCache
 
@@ -17,4 +18,6 @@ __all__ = [
     "RetryPolicy",
     "RobotsCache",
     "extract_links",
+    "format_report",
+    "report_to_dict",
 ]

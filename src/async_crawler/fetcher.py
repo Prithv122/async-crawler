@@ -47,6 +47,7 @@ class AsyncFetcher:
         client: httpx.AsyncClient | None = None,
         rate_limiter: RateLimiter | None = None,
         retry_policy: RetryPolicy | None = None,
+        user_agent: str | None = None,
     ) -> None:
         if max_concurrency < 1:
             raise ValueError("max_concurrency must be >= 1")
@@ -56,10 +57,28 @@ class AsyncFetcher:
         self._owns_client = client is None
         self._rate_limiter = rate_limiter
         self._retry_policy = retry_policy
+        self._user_agent = user_agent
+
+    @property
+    def client(self) -> httpx.AsyncClient:
+        """The underlying httpx client, exposed so other components (e.g.
+        RobotsCache) can share its connection pool and identity instead of
+        opening a second one.
+        """
+        if self._client is None:
+            raise RuntimeError("AsyncFetcher must be used as an async context manager")
+        return self._client
 
     async def __aenter__(self) -> AsyncFetcher:
         if self._client is None:
-            self._client = httpx.AsyncClient(timeout=self._timeout, follow_redirects=True)
+            # Same User-Agent for the actual request and for whatever robots.txt
+            # matching is done against it — a crawler that checks robots.txt
+            # under one identity and requests under another isn't really
+            # honoring it.
+            headers = {"User-Agent": self._user_agent} if self._user_agent else None
+            self._client = httpx.AsyncClient(
+                timeout=self._timeout, follow_redirects=True, headers=headers
+            )
         return self
 
     async def __aexit__(

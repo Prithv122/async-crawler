@@ -146,6 +146,30 @@ async def test_fetcher_owns_and_closes_its_own_client() -> None:
     assert fetcher._client.is_closed
 
 
+def test_client_property_raises_before_entering_context_manager() -> None:
+    fetcher = AsyncFetcher()
+    with pytest.raises(RuntimeError):
+        _ = fetcher.client
+
+
+@pytest.mark.asyncio
+async def test_client_property_exposes_the_underlying_httpx_client() -> None:
+    async with AsyncFetcher() as fetcher:
+        assert fetcher.client is fetcher._client
+
+
+@pytest.mark.asyncio
+async def test_owned_client_sends_configured_user_agent_header() -> None:
+    async with AsyncFetcher(user_agent="test-crawler/1.0") as fetcher:
+        assert fetcher.client.headers["User-Agent"] == "test-crawler/1.0"
+
+
+@pytest.mark.asyncio
+async def test_owned_client_falls_back_to_httpx_default_user_agent() -> None:
+    async with AsyncFetcher() as fetcher:
+        assert "python-httpx" in fetcher.client.headers["User-Agent"]
+
+
 @pytest.mark.asyncio
 async def test_fetch_retries_retryable_failures_then_succeeds() -> None:
     transport = _FlakyTransport(fail_times=2, failure_status=503)

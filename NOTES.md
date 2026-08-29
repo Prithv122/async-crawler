@@ -59,6 +59,25 @@ Keep it rough. Rough is the point.
   used a `max_pages` slot. Worth stating explicitly in the crawler's docstring/README, since
   "pages crawled" reads as "pages successfully parsed" if you don't think about it.
 
+### 2026-08-29 — Stage 5: CLI + report
+- **Tried:** used an em dash (`—`) in the `--ignore-robots` argparse help string and in the
+  broken-links report line, then ran `uv run async-crawler --help > file.txt` to smoke-test it.
+- **Broke:** the redirected output contained byte `\x97` where the em dash should be — that's
+  the em dash in **Windows-1252**, not UTF-8 (`\xe2\x80\x94`). Any tool expecting UTF-8 (a CI
+  log viewer, a non-Windows reader, `python -c "...decode('utf-8')..."`) would mangle or fail on
+  it. Confirmed by reading the raw bytes rather than trusting what the terminal displayed — the
+  terminal itself was rendering it as `?`, which looked like it might just be a display quirk,
+  not a real bug.
+- **Fixed by:** replaced both em dashes with a plain hyphen. Root cause: Python on Windows uses
+  the Windows console API for UTF-8-safe output only when stdout is an actual interactive
+  console; the moment it's redirected/piped (a file, `| grep`, CI capturing output), it falls
+  back to `locale.getpreferredencoding()`, which on this machine is cp1252.
+- **Learned:** don't put non-ASCII characters in anything a CLI actually prints (argparse help
+  text, report output) — even though this project already prints em dashes just fine when run
+  interactively, "works in an interactive terminal" and "works when redirected" are genuinely
+  different guarantees on Windows. Non-ASCII in source comments/docstrings is fine; the line is
+  whether the string reaches `print()`.
+
 ## Rejected approaches
 
 | Approach | Why rejected |
