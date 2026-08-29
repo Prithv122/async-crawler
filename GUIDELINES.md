@@ -11,13 +11,14 @@ Async web scraper and link checker: crawls a site with `httpx.AsyncClient`, resp
 
 ## Stack
 
-Python 3.13, `httpx` (async HTTP + `robotparser` integration), stdlib `urllib.robotparser`,
-`asyncio.Semaphore` for concurrency/rate limiting, Typer or argparse for the CLI.
+Python 3.13, `httpx` (async HTTP), stdlib `urllib.robotparser` (decoupled from its blocking
+`read()`), `asyncio.Semaphore` for concurrency, stdlib `html.parser` for link extraction, stdlib
+`argparse` for the CLI.
 
 ## Acceptance criteria
 
-- [ ] Async scraper + link checker (httpx, rate limiting, backoff, robots.txt) — from CATALOG.md
-- [ ] Proves: asyncio, ethical scraping
+- [x] Async scraper + link checker (httpx, rate limiting, backoff, robots.txt) — from CATALOG.md
+- [x] Proves: asyncio, ethical scraping
 - [ ] Ship gate passes (`/ship`)
 
 ## Project-specific notes
