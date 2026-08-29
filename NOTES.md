@@ -43,6 +43,22 @@ Keep it rough. Rough is the point.
   most one side needs the reference at *runtime* (not just for a type hint). Worth remembering
   before reaching for a shared "types" module as the default fix.
 
+### 2026-08-29 — Stage 4: link checker / crawler
+- **Tried:** wrote `extract_links` test expecting `href="#top"` to be dropped as "fragment-only."
+- **Broke:** it resolved to `https://example.com/page` (the current page, minus the fragment) —
+  not empty. `urljoin(base, "#top")` legitimately produces the base URL; `urldefrag` then strips
+  the fragment, leaving a real, fetchable URL.
+- **Fixed by:** realized this is correct, not a bug — a fragment-only href really does point back
+  at the page it's on. Split the test into "fragment-only resolves to the current page" (kept)
+  vs. "truly empty/missing href" (dropped, since `handle_starttag` only records `href` when its
+  value is truthy).
+- **Also hit:** first draft of a crawl test asserted `pages_crawled == 3` for a fixture with one
+  internal 404 (`/broken`) among three good pages, expecting only *successful* pages to count.
+  Actual count was 4. **Learned:** `pages_crawled` counts every same-domain URL the crawler
+  actually fetched, not just ones that returned HTML successfully — a broken internal link still
+  used a `max_pages` slot. Worth stating explicitly in the crawler's docstring/README, since
+  "pages crawled" reads as "pages successfully parsed" if you don't think about it.
+
 ## Rejected approaches
 
 | Approach | Why rejected |

@@ -22,10 +22,16 @@ class FetchResult:
     status_code: int | None
     elapsed: float
     error: str | None = None
+    content_type: str | None = None
+    text: str | None = None
 
     @property
     def ok(self) -> bool:
         return self.error is None and self.status_code is not None and self.status_code < 400
+
+    @property
+    def is_html(self) -> bool:
+        return self.content_type is not None and "html" in self.content_type.lower()
 
 
 class AsyncFetcher:
@@ -100,10 +106,17 @@ class AsyncFetcher:
                 elapsed=time.monotonic() - start,
                 error=f"{type(exc).__name__}: {exc}",
             )
+        content_type = response.headers.get("content-type")
+        # Only decode the body as text for HTML pages — the crawler needs it
+        # to find further links; other content types (images, PDFs, ...)
+        # are checked for status only, so there's no reason to buffer them.
+        text = response.text if content_type and "html" in content_type.lower() else None
         return FetchResult(
             url=url,
             status_code=response.status_code,
             elapsed=time.monotonic() - start,
+            content_type=content_type,
+            text=text,
         )
 
     async def fetch_many(self, urls: Iterable[str]) -> list[FetchResult]:
