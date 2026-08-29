@@ -1,0 +1,36 @@
+[project]
+name = "async-crawler"
+version = "0.1.0"
+description = "Async web scraper and link checker with rate limiting, exponential backoff, and robots.txt compliance"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "httpx>=0.28",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "ruff>=0.9",
+]
+
+# Virtual project: no build backend needed. Projects that publish to PyPI
+# (see A6) replace this with a real [build-system] + hatchling config.
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101"]
