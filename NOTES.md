@@ -30,6 +30,19 @@ Keep it rough. Rough is the point.
 
 ---
 
+### 2026-08-29 — Stage 3: rate limiting + backoff
+- **Tried:** `retry.py` imports `FetchResult` from `fetcher.py` for `is_retryable()`'s type hint,
+  while `fetcher.py` imports `retry.py` to call `is_retryable()`/`compute_delay()` inside `fetch()`.
+- **Broke:** `ImportError: cannot import name 'FetchResult' from partially initialized module` —
+  a straightforward circular import between the two modules.
+- **Fixed by:** moved the `FetchResult` import in `retry.py` behind `if TYPE_CHECKING:`. Works
+  for free because `from __future__ import annotations` (PEP 563) already makes every annotation
+  a lazily-evaluated string — the name never needs to exist at runtime, only when a type checker
+  reads the file.
+- **Learned:** composing two modules that reference each other's types is fine as long as at
+  most one side needs the reference at *runtime* (not just for a type hint). Worth remembering
+  before reaching for a shared "types" module as the default fix.
+
 ## Rejected approaches
 
 | Approach | Why rejected |

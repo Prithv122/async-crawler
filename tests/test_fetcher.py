@@ -8,6 +8,8 @@ import httpx
 import pytest
 
 from async_crawler.fetcher import AsyncFetcher, FetchResult
+from async_crawler.ratelimit import RateLimiter
+from async_crawler.retry import RetryPolicy
 
 
 class _StatusTransport(httpx.AsyncBaseTransport):
@@ -46,6 +48,23 @@ class _ConcurrencyTrackingTransport(httpx.AsyncBaseTransport):
         await asyncio.sleep(self.delay)
         async with self._lock:
             self.active -= 1
+        return httpx.Response(200, request=request)
+
+
+class _FlakyTransport(httpx.AsyncBaseTransport):
+    """Fails with a retryable status the first `fail_times` requests, then
+    succeeds. Counts total requests received.
+    """
+
+    def __init__(self, fail_times: int, failure_status: int = 503) -> None:
+        self.fail_times = fail_times
+        self.failure_status = failure_status
+        self.call_count = 0
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        self.call_count += 1
+        if self.call_count <= self.fail_times:
+            return httpx.Response(self.failure_status, request=request)
         return httpx.Response(200, request=request)
 
 
@@ -125,3 +144,82 @@ async def test_fetcher_owns_and_closes_its_own_client() -> None:
         assert fetcher._client is not None
         assert not fetcher._client.is_closed
     assert fetcher._client.is_closed
+
+
+@pytest.mark.asyncio
+async def test_fetch_retries_retryable_failures_then_succeeds() -> None:
+    transport = _FlakyTransport(fail_times=2, failure_status=503)
+    policy = RetryPolicy(max_retries=3, base_delay=0.001, max_delay=0.01, jitter=0.0)
+
+    async with (
+        httpx.AsyncClient(transport=transport) as client,
+        AsyncFetcher(client=client, retry_policy=policy) as fetcher,
+    ):
+        result = await fetcher.fetch("https://example.com/")
+
+    assert result.ok
+    assert result.status_code == 200
+    assert transport.call_count == 3  # 2 failures + 1 success
+
+
+@pytest.mark.asyncio
+async def test_fetch_gives_up_after_max_retries() -> None:
+    transport = _FlakyTransport(fail_times=999, failure_status=500)
+    policy = RetryPolicy(max_retries=2, base_delay=0.001, max_delay=0.01, jitter=0.0)
+
+    async with (
+        httpx.AsyncClient(transport=transport) as client,
+        AsyncFetcher(client=client, retry_policy=policy) as fetcher,
+    ):
+        result = await fetcher.fetch("https://example.com/")
+
+    assert not result.ok
+    assert result.status_code == 500
+    assert transport.call_count == 3  # 1 initial try + 2 retries, then give up
+
+
+@pytest.mark.asyncio
+async def test_fetch_without_retry_policy_never_retries() -> None:
+    transport = _FlakyTransport(fail_times=999, failure_status=503)
+
+    async with (
+        httpx.AsyncClient(transport=transport) as client,
+        AsyncFetcher(client=client) as fetcher,
+    ):
+        result = await fetcher.fetch("https://example.com/")
+
+    assert result.status_code == 503
+    assert transport.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_fetch_does_not_retry_non_retryable_status() -> None:
+    transport = _StatusTransport(status_code=404)
+    policy = RetryPolicy(max_retries=3, base_delay=0.001)
+
+    async with (
+        httpx.AsyncClient(transport=transport) as client,
+        AsyncFetcher(client=client, retry_policy=policy) as fetcher,
+    ):
+        result = await fetcher.fetch("https://example.com/missing")
+
+    assert result.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_fetch_consults_rate_limiter_before_each_request() -> None:
+    transport = _StatusTransport(status_code=200)
+    waited_urls: list[str] = []
+
+    class _RecordingLimiter(RateLimiter):
+        async def wait(self, url: str) -> None:
+            waited_urls.append(url)
+
+    async with (
+        httpx.AsyncClient(transport=transport) as client,
+        AsyncFetcher(client=client, rate_limiter=_RecordingLimiter()) as fetcher,
+    ):
+        await fetcher.fetch("https://example.com/a")
+        await fetcher.fetch("https://example.com/b")
+
+    assert waited_urls == ["https://example.com/a", "https://example.com/b"]
