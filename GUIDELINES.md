@@ -19,7 +19,7 @@ Python 3.13, `httpx` (async HTTP), stdlib `urllib.robotparser` (decoupled from i
 
 - [x] Async scraper + link checker (httpx, rate limiting, backoff, robots.txt) — from CATALOG.md
 - [x] Proves: asyncio, ethical scraping
-- [ ] Ship gate passes (`/ship`)
+- [ ] Ship gate passes
 
 ## Project-specific notes
 
